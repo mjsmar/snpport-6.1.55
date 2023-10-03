@@ -341,18 +341,18 @@ static const struct address_space_operations kvm_gmem_aops = {
 	.error_remove_page = kvm_gmem_error_page,
 };
 
-static int  kvm_gmem_getattr(struct mnt_idmap *idmap,
+static int  kvm_gmem_getattr(struct user_namespace *usrns,
 			     const struct path *path, struct kstat *stat,
 			     u32 request_mask, unsigned int query_flags)
 {
 	struct inode *inode = path->dentry->d_inode;
  
 	/* TODO */
-	generic_fillattr(idmap, inode, stat);
+	generic_fillattr(usrns, inode, stat);
 	return 0;
 }
 
-static int kvm_gmem_setattr(struct mnt_idmap *idmap, struct dentry *dentry,
+static int kvm_gmem_setattr(struct user_namespace *usrns, struct dentry *dentry,
 			    struct iattr *attr)
 {
 	/* TODO */

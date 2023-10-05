@@ -158,4 +158,14 @@ static inline void *align_ptr_up(void *x, size_t size)
 	return (void *)align_up((unsigned long)x, size);
 }
 
+int atoi_paranoid(const char *num_str);
+
+static inline uint32_t atoi_positive(const char *name, const char *num_str)
+{
+	int num = atoi_paranoid(num_str);
+
+	TEST_ASSERT(num > 0, "%s must be greater than 0, got '%s'", name, num_str);
+	return num;
+}
+
 #endif /* SELFTEST_KVM_TEST_UTIL_H */

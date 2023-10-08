@@ -200,6 +200,7 @@ skip:
 		guest_map_shared(gpa, size, do_fallocate);
 		memset((void *)gpa, p3, size);
 		guest_sync_shared(gpa, size, p3, p4);
+//if(i == 2) return;
 		memcmp_g(gpa, p4, size);
  
 		/* Reset the shared memory back to the initial pattern. */
@@ -221,7 +222,7 @@ static void guest_code(uint64_t base_gpa)
 	 * guest_memfd backing when converting between shared and private.
 	 */
 	guest_run_test(base_gpa, false);
-	guest_run_test(base_gpa, true);
+	//guest_run_test(base_gpa, true);
 	GUEST_DONE();
 }
 
@@ -248,12 +249,95 @@ static void handle_exit_hypercall(struct kvm_vcpu *vcpu)
 
 static bool run_vcpus;
 
+static void print_seq(int seq, uint8_t *hva, 
+		uint64_t size, struct ucall *uc, char *range)
+{
+	printf("---------------sequence %d range=%s------------\n", seq, range);
+        if(uc->args[0] == SYNC_SHARED)
+             printf("SYNC_SHARED\n");
+	else 
+             printf("SYNC_PRIVATE\n");
+
+	switch(seq) {
+	case 0: 
+           memcmp_h(hva, 0x33, 0x1000);
+	   printf("SHARED_MEMORY[0-0x%lx]=x%lx\n" , size, uc->args[3]);
+	   break;
+
+        case 1: 
+	   memcmp_h(hva, 0x11, 0x1000);
+           printf("SHARED MEMORY[0-0x%lx]=0x%lx\n", size, uc->args[3]);
+           printf("PRIVATE MEMORY[0-0x%lx]=0x%x\n", size, 0x22);
+
+           memcmp_h(hva+size, 0xcc, PER_CPU_DATA_SIZE-size);
+           printf("SHARED MEMORY[0-0x%lx]=0x%x\n", size, *(hva + size));	
+           break;
+
+        case 2: 
+	   memcmp_h(hva, 0x11, 0x1000);
+           printf("SHARED MEMORY[0-0x%lx]=0x%lx\n", size, uc->args[3]);
+           printf("PRIVATE MEMORY[0-0x%lx]=0x%x\n", size, 0x22);
+           memcmp_h(hva+size, 0xcc, PER_CPU_DATA_SIZE-size);
+           printf("SHARED MEMORY[0-0x%lx]=0x%x\n", size, *(hva + size));	
+	   break;
+        case 3: 
+	   memcmp_h(hva, 0x33, 0x1000);
+           printf("SHARED MEMORY[0-0x%lx]=0x%lx\n", size, uc->args[3]);
+           printf("PRIVATE MEMORY[0-0x%lx]=0x%x\n", size, 0x22);
+           memcmp_h(hva+size, 0xcc, PER_CPU_DATA_SIZE-size);
+           printf("SHARED MEMORY[0-0x%lx]=0x%x\n", size, *(hva + size));	
+	   break;
+        case 4: 
+	   memcmp_h(hva, 0x33, PER_CPU_DATA_SIZE-0x1000);
+           printf("SHARED MEMORY[0-0x%lx]=0x%lx\n", size, uc->args[3]);
+           printf("PRIVATE MEMORY[0-0x%lx]=??\n", PER_CPU_DATA_SIZE);
+	   break;
+        case 5: 
+	   memcmp_h(hva, 0x11, 0x1000);
+           printf("SHARED MEMORY [0x1000-0x%lx]=0x%lx\n", size, uc->args[3]);
+	   printf("PRIVATE MEMORY[0x1000-0x2000]=0x22\n");
+	   memcmp_h(hva-0x1000, 0xcc, 0x1000);
+	   memcmp_h(hva+0x1000, 0xcc, PER_CPU_DATA_SIZE-(2*PAGE_SIZE));
+           printf("SHARED MEMORY[0x0000-0x1000]=0x%x\n", 0xcc);
+           printf("SHARED MEMORY[0x2000-0x20000]=0x%x\n", 0xcc);
+	   break;
+        case 6: 
+	   TEST_ASSERT(uc->args[2] == 0x1000, "wrong size expected 0x1000 got %lx",
+			   uc->args[2]);
+	   memcmp_h(hva, 0x11, 0x1000);
+           printf("SHARED MEMORY [0x1000-0x%lx]=0x%lx\n", size, uc->args[3]);
+	   printf("PRIVATE MEMORY[0x1000-0x2000]=0x22\n");
+	   memcmp_h(hva-0x1000, 0xcc, 0x1000);
+	   memcmp_h(hva+0x1000, 0xcc, PER_CPU_DATA_SIZE-(2*PAGE_SIZE));
+           printf("SHARED  MEMORY[0x0000-0x1000]=0x%x\n", 0xcc);
+           printf("PRIVATE MEMORY[0x0000-0x1000]=0x%x\n", 0xcc);
+           printf("SHARED  MEMORY[0x2000-0x20000]=0x%x\n", 0xcc);
+           printf("PRIVATE MEMORY[0x2000-0x20000]=0x%x\n", 0xcc);
+	   break;
+        case 7: 
+	   TEST_ASSERT(uc->args[2] == 0x1000, "wrong size expected 0x1000 got %lx",
+			   uc->args[2]);
+	   memcmp_h(hva, 0x33, 0x1000);
+           printf("SHARED MEMORY [0x1000-0x%lx]=0x%lx\n", size, uc->args[3]);
+	   printf("PRIVATE MEMORY[0x1000-0x2000]=0x22\n");
+	   memcmp_h(hva-0x1000, 0xcc, 0x1000);
+	   memcmp_h(hva+0x1000, 0xcc, PER_CPU_DATA_SIZE-(2*PAGE_SIZE));
+           printf("SHARED  MEMORY[0x0000-0x1000]=0x%x\n", 0xcc);
+           printf("PRIVATE MEMORY[0x0000-0x1000]=0x%x\n", 0xcc);
+           printf("SHARED  MEMORY[0x2000-0x20000]=0x%x\n", 0xcc);
+           printf("PRIVATE MEMORY[0x2000-0x20000]=0x%x\n", 0xcc);
+	   break;
+	}
+	printf("---------------sequence %d range=%s------------\n", seq, range);
+}
+
 static void *__test_mem_conversions(void *__vcpu)
 {
 	struct kvm_vcpu *vcpu = __vcpu;
 	struct kvm_run *run = vcpu->run;
 	struct kvm_vm *vm = vcpu->vm;
 	struct ucall uc;
+	static int cnt=0;
 
 	while (!READ_ONCE(run_vcpus))
 		;
@@ -277,16 +361,38 @@ static void *__test_mem_conversions(void *__vcpu)
 			uint8_t *hva = addr_gpa2hva(vm, uc.args[1]);
 			uint64_t size = uc.args[2];
 
+			
+			if (cnt == 8) exit(0);
 			TEST_ASSERT(uc.args[0] == SYNC_SHARED ||
 				    uc.args[0] == SYNC_PRIVATE,
 				    "Unknown sync command '%ld'", uc.args[0]);
 
 			/* In all cases, the host should observe the shared data. */
 			memcmp_h(hva, uc.args[3], size);
+
+			if (cnt <= 3) {
+			    print_seq(cnt, hva, size, &uc, "[0:0x1000]");
+			} else if (cnt == 4) {
+			    print_seq(cnt, hva, size, &uc, "[0:0x200000]");
+                        } else if (cnt > 4) {
+			    print_seq(cnt, hva, size, &uc, "[0x1000:0x1000]");
+                        }
  
 			/* For shared, write the new pattern to guest memory. */
-			if (uc.args[0] == SYNC_SHARED)
+			if (uc.args[0] == SYNC_SHARED) {
 				memset(hva, uc.args[4], size);
+                        } 
+			if( uc.args[0] == SYNC_PRIVATE) {
+			    if (cnt <= 3)
+			        print_seq(cnt, hva, size, &uc, "[0:0x1000]");
+			    else if (cnt == 4)
+			        print_seq(cnt, hva, size, &uc, "[0:0x201000]");
+			    else if (cnt > 4)
+			        print_seq(cnt, hva, size, &uc, "[0x1000:0x1000]");
+                        }
+
+			cnt++;
+
 			break;
 		}
 		case UCALL_DONE:

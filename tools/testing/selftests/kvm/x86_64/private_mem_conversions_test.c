@@ -110,7 +110,6 @@ static void guest_map_private(uint64_t gpa, uint64_t size, bool do_fallocate)
 {
 	guest_map_mem(gpa, size, false, do_fallocate);
 }
-
 static void guest_run_test(uint64_t base_gpa, bool do_fallocate)
 {
 	struct {
@@ -127,7 +126,6 @@ static void guest_run_test(uint64_t base_gpa, bool do_fallocate)
 	const uint8_t init_p = 0xcc;
 	uint64_t j;
 	int i;
-	static int entrycnt=0;
 
 	/* Memory should be shared by default. */
 	memset((void *)base_gpa, ~init_p, PER_CPU_DATA_SIZE);
@@ -165,12 +163,13 @@ static void guest_run_test(uint64_t base_gpa, bool do_fallocate)
 
 		memset((void *)gpa, p2, size);
 
-		// Canary check
-		if (entrycnt == 0 && i == 2) {
+		/* Checkpoint */
+		if (do_fallocate == false && i == 2) {
 			guest_map_private(base_gpa, PER_CPU_DATA_SIZE, do_fallocate);
 			/* [0-0x201000 - is gmem backed now */
 			memcmp_g(base_gpa, 0, PAGE_SIZE);
 			memcmp_g(base_gpa+PAGE_SIZE, p2, PAGE_SIZE); 
+			/* 510 Page faults because the region is private */
 			memcmp_g(base_gpa+(2*PAGE_SIZE), 0, (SZ_2M-PAGE_SIZE));
 			guest_map_shared(base_gpa, PER_CPU_DATA_SIZE, do_fallocate);
 			/* retain private range */
@@ -186,6 +185,8 @@ static void guest_run_test(uint64_t base_gpa, bool do_fallocate)
 		memcmp_g(gpa, p2, size);
 		if (gpa > base_gpa)
 			memcmp_g(base_gpa, init_p, gpa - base_gpa);
+
+		/* Shared region no private page faults */
 		if (gpa + size < base_gpa + PER_CPU_DATA_SIZE)
 			memcmp_g(gpa + size, init_p,
 			(base_gpa + PER_CPU_DATA_SIZE) - (gpa + size));
@@ -211,6 +212,11 @@ skip:
 		 * pattern three to fill in the even-number frames before
 		 * asking the host to verify (and write pattern four).
 		 */
+
+		/*
+		 * guest_map_mem(gpa, size, punch_hole=true, do_fallocate) 
+		 * - sets punch hole and deletes the region in GMEM
+		 */
 		guest_map_shared(gpa, size, do_fallocate);
 		memset((void *)gpa, p3, size);
 		guest_sync_shared(gpa, size, p3, p4);
@@ -220,7 +226,7 @@ skip:
 		memset((void *)gpa, init_p, size);
 
 		/* Double check private memory still there before freed at end */
-	        if (entrycnt == 0) {
+	        if (do_fallocate == false) {
 			uint64_t _gpa; 
 			switch(i) {
 			case 0: 
@@ -240,8 +246,8 @@ skip:
 			guest_map_shared(_gpa, PAGE_SIZE, do_fallocate);
           	}
  
-		// Canary check
-		if (entrycnt == 0 && i == 4) {
+		/* Verify understanding */
+		if (do_fallocate == false && i == 4) {
 			guest_map_private(base_gpa, PER_CPU_DATA_SIZE, do_fallocate);
 			/* [0-0x201000 - is gmem backed now */
 			memcmp_g(base_gpa, 0, SZ_2M);
@@ -252,16 +258,48 @@ skip:
 		 * operation starts from a clean slate, e.g. with respect to
 		 * whether or not there are pages/folios in guest_mem.
 		 */
+
 		guest_map_shared(base_gpa, PER_CPU_DATA_SIZE, true);
 
 		/* Verify all private memory freed range set to 0 */
 		guest_map_private(base_gpa, PER_CPU_DATA_SIZE, do_fallocate);
 		memcmp_g(base_gpa, 0, PER_CPU_DATA_SIZE);
 		guest_map_shared(base_gpa, PER_CPU_DATA_SIZE, true);
-
 	}
-	entrycnt++;
 }
+
+static void guest_test_gmem_fallocate_with_fault(uint64_t base_gpa, bool fallocate)
+{
+	guest_map_shared(base_gpa, PER_CPU_DATA_SIZE, true);
+	/* [0:0x200000] fallocate = true;
+	 * kvm_gmem_fallocate: FALLOC_FL_KEEP_SIZE offset=0 len=0x200000
+	 * kvm_gmem_get_pfn: gfn=0x100000 slot(base_gfn=0x100000, gmem.pgoff=0)
+	 * ....
+	 * kvm_gmem_get_pfn: gfn=0x1001ff slot(base_gfn=0x100000, gmem.pgoff=0)
+	 * [0:0x200000] fallocate = false;
+	 * kvm_gmem_get_pfn: gfn=0x100000 slot(base_gfn=0x100000, gmem.pgoff=0)
+	 * ....
+	 * kvm_gmem_get_pfn: gfn=0x1001ff slot(base_gfn=0x100000, gmem.pgoff=0)
+	 */
+	guest_map_mem(base_gpa, SZ_2M, false, fallocate);
+	memset((void *)base_gpa, 0x11, SZ_2M);
+
+}
+
+void guest_test_gmem_fallocate_with_fault_hp(uint64_t base_gpa, bool fallocate)
+{
+
+	guest_map_shared(base_gpa, PER_CPU_DATA_SIZE, true);
+	/* [0:0x200000]: fallocate = true 
+	 * kvm_gmem_fallocate mode=FALLOC_FL_KEEP_SIZE ofst=0 len=200000
+	 * kvm_gmem_get_pfn: gfn=0x100000 slot(base_gfn=0x100000, gmem.pgoff=0)
+	 * [0:0x200000]: fallocate = false 
+	 * kvm_gmem_get_pfn: gfn=0x100000 slot(base_gfn=0x100000, gmem.pgoff=0)
+	 */
+	guest_map_mem(base_gpa, SZ_2M, false, fallocate);
+	memset((void *)base_gpa, 0x11, SZ_2M);
+}
+
 static void guest_code(uint64_t base_gpa)
 {
 	/*
@@ -269,7 +307,16 @@ static void guest_code(uint64_t base_gpa)
 	 * guest_memfd backing when converting between shared and private.
 	 */
 	guest_run_test(base_gpa, false);
-	//guest_run_test(base_gpa, true);
+	guest_run_test(base_gpa, true);
+
+	/* Isolate fallocate() and page fault memory allocate THP=no */
+	guest_test_gmem_fallocate_with_fault(base_gpa, true);
+	guest_test_gmem_fallocate_with_fault(base_gpa, false);
+
+	/* Isolate fallocate() and page fault memory allocate THP=yes */
+	/* run with option: "-s anonymous_thp" */
+	guest_test_gmem_fallocate_with_fault_hp(base_gpa, true);
+	guest_test_gmem_fallocate_with_fault_hp(base_gpa, false);
 	GUEST_DONE();
 }
 
@@ -296,10 +343,10 @@ static void handle_exit_hypercall(struct kvm_vcpu *vcpu)
 
 static bool run_vcpus;
 
-static void print_seq(int seq, uint8_t *hva, 
-		uint64_t size, struct ucall *uc, char *range)
+static void print_seq(int seq, int run, uint8_t *hva, uint64_t size, 
+		struct ucall *uc, char *range)
 {
-	printf("================sequence %d range=%s=========\n", seq, range);
+	printf("===========run=%d sequence %d range=%s=========\n", run, seq, range);
         if(uc->args[0] == SYNC_SHARED)
              printf("SYNC_SHARED ");
 	else 
@@ -466,16 +513,8 @@ static void print_seq(int seq, uint8_t *hva,
 			   (uint64_t)(SZ_2M + PAGE_SIZE));
            printf("RESET range [0x0=0x%lx] to SHARED MEMORY\n", PER_CPU_DATA_SIZE);
 	   break;
-        case 12: 
-	   TEST_ASSERT(uc->args[2] == PER_CPU_DATA_SIZE, 
-			   "wrong size expected 0x1000 got %lx", uc->args[2]);
-	   break;
-        case 13: 
-	   printf("0x10000000 = %lx\n", uc->args[4]); 
-	   //printf("0x10000100 = %lx\n", uc->args[3]);
-	   break;
 	}
-	printf("================sequence %d range=%s=========\n\n", seq, range);
+	printf("===========run=%d sequence %d range=%s=========\n\n", run, seq, range);
 }
 
 static char * getrange(int seq)
@@ -502,7 +541,8 @@ static void *__test_mem_conversions(void *__vcpu)
 	struct kvm_run *run = vcpu->run;
 	struct kvm_vm *vm = vcpu->vm;
 	struct ucall uc;
-	static int cnt=0;
+	int seqcnt=0;
+	int seqrun=0;
 
 	while (!READ_ONCE(run_vcpus))
 		;
@@ -527,7 +567,8 @@ static void *__test_mem_conversions(void *__vcpu)
 			uint64_t size = uc.args[2];
 
 			
-			if (cnt == 14) exit(0);
+			if (seqcnt == 12) 
+				exit(0);
 			TEST_ASSERT(uc.args[0] == SYNC_SHARED ||
 				    uc.args[0] == SYNC_PRIVATE,
 				    "Unknown sync command '%ld'", uc.args[0]);
@@ -540,10 +581,13 @@ static void *__test_mem_conversions(void *__vcpu)
 			if (uc.args[0] == SYNC_SHARED) {
 				memset(hva, uc.args[4], size);
                         } 
-			print_seq(cnt, hva, size, &uc, getrange(cnt));
+			print_seq(seqcnt, seqrun, hva, size, &uc, getrange(seqcnt));
 
-			cnt++;
-
+			if(seqcnt == 11) {
+				seqcnt = 0;
+				seqrun++;
+			} else
+				seqcnt++;
 			break;
 		}
 		case UCALL_DONE:

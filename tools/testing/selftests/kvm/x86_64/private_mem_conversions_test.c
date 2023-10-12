@@ -24,9 +24,6 @@
 #include <kvm_util.h>
 #include <processor.h>
 
-#define KVM_X86_DEFAULT_VM      0
-#define KVM_X86_SW_PROTECTED_VM 1
-
 #define BASE_DATA_SLOT         10
 #define BASE_DATA_GPA          ((uint64_t)(1ull << 32))
 #define PER_CPU_DATA_SIZE      ((uint64_t)(SZ_2M + PAGE_SIZE))

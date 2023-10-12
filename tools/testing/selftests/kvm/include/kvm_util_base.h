@@ -16,7 +16,6 @@
 #include <linux/kvm.h>
 #include "linux/rbtree.h"
 
-
 #include <sys/ioctl.h>
 
 #include "sparsebit.h"
@@ -25,6 +24,10 @@
 #define KVM_MAX_VCPUS 512
 
 #define NSEC_PER_SEC 1000000000L
+
+/* TODO: sync tree kvm.h with host kvm.h */
+#define KVM_X86_DEFAULT_VM      0
+#define KVM_X86_SW_PROTECTED_VM 1
 
 typedef uint64_t vm_paddr_t; /* Virtual Machine (Guest) physical address */
 typedef uint64_t vm_vaddr_t; /* Virtual Machine (Guest) virtual address */
@@ -741,6 +744,16 @@ struct kvm_vm *__vm_create(struct vm_shape shape, uint32_t nr_runnable_vcpus,
 static inline struct kvm_vm *vm_create_barebones(void)
 {
 	return ____vm_create(VM_SHAPE_DEFAULT, 0);
+}
+
+static inline struct kvm_vm *vm_create_barebones_protected_vm(void)
+{
+	const struct vm_shape shape = {
+		.mode = VM_MODE_DEFAULT,
+		.type = KVM_X86_SW_PROTECTED_VM,
+	};
+
+	return ____vm_create(shape, 1024);
 }
 
 static inline struct kvm_vm *vm_create(uint32_t nr_runnable_vcpus)

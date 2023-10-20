@@ -408,7 +408,7 @@ static void test_add_private_memory_region(void)
 	test_invalid_guest_memfd(vm, vm->fd, 0, "VM's fd should fail");
 
 	memfd = kvm_memfd_alloc(MEM_REGION_SIZE, false);
-	test_invalid_guest_memfd(vm, vm->fd, 0, "Regular memfd() should fail");
+	test_invalid_guest_memfd(vm, memfd, 0, "Regular memfd() should fail");
 	close(memfd);
 
 	vm2 = vm_create_barebones_protected_vm();
@@ -474,17 +474,17 @@ static void test_add_overlapping_private_memory_regions(void)
 		    "Overlapping guest_memfd() bindings should fail with EEXIST");
 
 	r = __vm_set_user_memory_region2(vm, MEM_REGION_SLOT, KVM_MEM_PRIVATE,
-					 MEM_REGION_GPA * 3 + MEM_REGION_SIZE,
+					 MEM_REGION_GPA * 3,
 					 MEM_REGION_SIZE * 2,
 					 0, memfd, MEM_REGION_SIZE);
 	TEST_ASSERT(r == -1 && errno == EINVAL, "%s",
-		    "Overlapping gmem offsets should fail with EINVAL");
+		    "Non overlapping gpa range but Overlapping gmem range [0x400000:0x600000] should fail with EINVAL");
 
 	r = __vm_set_user_memory_region2(vm, MEM_REGION_SLOT, KVM_MEM_PRIVATE,
-					 MEM_REGION_GPA * 3 + MEM_REGION_SIZE,
+					 MEM_REGION_GPA * 3,
 					 MEM_REGION_SIZE * 2,
 					 0, memfd, 0);
-	TEST_ASSERT(r == 0, "%s", "nonoverlapping gpa or gmem range, re-populated deleted gpa and gmem range should succeed");
+	TEST_ASSERT(r == 0, "%s", "nonoverlapping gpa and gmem range [0x0:0x400000] add should have succeeded");
 
 	close(memfd);
 	kvm_vm_free(vm);

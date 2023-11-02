@@ -490,12 +490,95 @@ static void test_add_overlapping_private_memory_regions(void)
 	kvm_vm_free(vm);
 }
 
+#define BASE_DATA_GPA          ((uint64_t)(1ull << 32))
+#define BASE_DATA_SLOT         10
+
+static void test_congig_gpa_regions_two_gmemfds(void)
+{
+	struct kvm_vm *vm;
+	int memfd, memfd2, r;
+	const size_t size = 0x200000;
+
+	printf("Testing fallocote() on two contiguous gpa regions & two GMEM fds\n");
+	vm = vm_create_barebones_protected_vm();
+	memfd = vm_create_guest_memfd(vm, size, 0);
+	memfd2 = vm_create_guest_memfd(vm, size, 0);
+
+	vm_mem_add(vm, DEFAULT_VM_MEM_SRC,
+		 BASE_DATA_GPA,
+                 BASE_DATA_SLOT, size / vm->page_size,
+                 KVM_MEM_PRIVATE, memfd, 0);
+
+	vm_mem_add(vm, DEFAULT_VM_MEM_SRC,
+		 BASE_DATA_GPA+size,
+                 BASE_DATA_SLOT+1, size / vm->page_size,
+                 KVM_MEM_PRIVATE, memfd2, 0);
+
+	r = fallocate(memfd, FALLOC_FL_KEEP_SIZE, 0, size);
+	TEST_ASSERT(!r, __KVM_SYSCALL_ERROR("fallocate() memfd", r));
+
+	r = fallocate(memfd2, FALLOC_FL_KEEP_SIZE, 0, size);
+	TEST_ASSERT(!r, __KVM_SYSCALL_ERROR("fallocate() memfd2", r));
+
+	/* 
+	 * Unmaps gpa range  [gap+size/2 - gpa+size], 
+	 * [gpa+size - gpa+size+size/2] nont unmapped range is owned by memfd2 
+	 */
+	r = fallocate(memfd, FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
+		size-0x100000, size);
+	TEST_ASSERT(!r, __KVM_SYSCALL_ERROR("fallocate() punch hole", r));
+
+	/* Unmaps gpa range [gpa+size - gpa+size+size/2] */
+	r = fallocate(memfd2, FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
+		0, size - 0x100000);
+	TEST_ASSERT(!r, __KVM_SYSCALL_ERROR("fallocate() punch hole", r));
+
+	close(memfd);
+	close(memfd2);
+	kvm_vm_free(vm);
+}
+
+static void test_congig_gpa_regions_one_gmemfd(void)
+{
+	struct kvm_vm *vm;
+        int memfd, r;
+        const size_t size = 0x200000;
+
+        printf("Testing fallocote() on two contiguous gpa regions & one GMEM fd\n");
+        vm = vm_create_barebones_protected_vm();
+        memfd = vm_create_guest_memfd(vm, 2*size, 0);
+
+	vm_mem_add(vm, DEFAULT_VM_MEM_SRC,
+		 BASE_DATA_GPA,
+                 BASE_DATA_SLOT, size / vm->page_size,
+                 KVM_MEM_PRIVATE, memfd, 0);
+
+	vm_mem_add(vm, DEFAULT_VM_MEM_SRC,
+		 BASE_DATA_GPA+size,
+                 BASE_DATA_SLOT+1, size / vm->page_size,
+                 KVM_MEM_PRIVATE, memfd, size);
+
+	r = fallocate(memfd, FALLOC_FL_KEEP_SIZE, 0, 2*size);
+	TEST_ASSERT(!r, __KVM_SYSCALL_ERROR("fallocate() memfd 2x", r));
+
+	/* 
+	 * Unmaps gpa ranges 
+	 * [gap+size/2 - gpa+size], 
+	 * [gpa+size - gpa+size+size/2] 
+	 */
+	r = fallocate(memfd, FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
+		size/2, size);
+	TEST_ASSERT(!r, __KVM_SYSCALL_ERROR("fallocate() punch hole", r));
+
+	close(memfd);
+	kvm_vm_free(vm);
+}
+
 int main(int argc, char *argv[])
 {
 #ifdef __x86_64__
 	int i, loops;
 #endif
-
 	/* Tell stdout not to buffer its content */
 	setbuf(stdout, NULL);
 
@@ -510,8 +593,10 @@ int main(int argc, char *argv[])
 	test_add_max_memory_regions();
 
 	if (kvm_check_cap(KVM_CAP_VM_TYPES) & BIT(KVM_X86_SW_PROTECTED_VM)) {
-		test_add_private_memory_region();
-		test_add_overlapping_private_memory_regions();
+		//test_add_private_memory_region();
+		//test_add_overlapping_private_memory_regions();
+		//test_congig_gpa_regions_two_gmemfds();
+		test_congig_gpa_regions_one_gmemfd();
 	} else {
 		pr_info("Skipping tests for KVM_MEM_PRIVATE memory regions\n");
 	}

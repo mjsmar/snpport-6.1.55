@@ -593,9 +593,9 @@ int main(int argc, char *argv[])
 	test_add_max_memory_regions();
 
 	if (kvm_check_cap(KVM_CAP_VM_TYPES) & BIT(KVM_X86_SW_PROTECTED_VM)) {
-		//test_add_private_memory_region();
-		//test_add_overlapping_private_memory_regions();
-		//test_congig_gpa_regions_two_gmemfds();
+		test_add_private_memory_region();
+		test_add_overlapping_private_memory_regions();
+		test_congig_gpa_regions_two_gmemfds();
 		test_congig_gpa_regions_one_gmemfd();
 	} else {
 		pr_info("Skipping tests for KVM_MEM_PRIVATE memory regions\n");

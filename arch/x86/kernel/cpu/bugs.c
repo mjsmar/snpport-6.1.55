@@ -1585,6 +1585,10 @@ static void __init spectre_v2_select_mitigation(void)
 	if (mode == SPECTRE_V2_EIBRS && unprivileged_ebpf_enabled())
 		pr_err(SPECTRE_V2_EIBRS_EBPF_MSG);
 
+	/* 
+	 * "x86/speculation: Do not enable Automatic IBRS if SEV" patch not applied
+	 * AUTO IBRS no supported 6.1.55.
+	 */
 	if (spectre_v2_in_ibrs_mode(mode)) {
 		x86_spec_ctrl_base |= SPEC_CTRL_IBRS;
 		update_spec_ctrl(x86_spec_ctrl_base);

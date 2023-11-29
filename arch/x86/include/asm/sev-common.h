@@ -128,6 +128,10 @@ struct snp_psc_desc {
 	struct psc_entry entries[VMGEXIT_PSC_MAX_ENTRY];
 } __packed;
 
+/* RMP page size */
+#define RMP_PG_SIZE_4K                 0
+#define RMP_TO_X86_PG_LEVEL(level)     (((level) == RMP_PG_SIZE_4K) ? PG_LEVEL_4K : PG_LEVEL_2M)
+
 /* Guest message request error codes */
 #define SNP_GUEST_REQ_INVALID_LEN	BIT_ULL(32)
 #define SNP_GUEST_REQ_ERR_BUSY		BIT_ULL(33)

@@ -2395,7 +2395,7 @@ static __init int __snp_rmptable_init(void)
         wbinvd_on_all_cpus();
  
 	/* MFDM must be enabled on all the CPUs prior to enabling SNP. */
-        on_each_cpu(mfdm_enable, NULL, 1)
+        on_each_cpu(mfdm_enable, NULL, 1);
 
         /* Enable SNP on all CPUs. */
         on_each_cpu(snp_enable, NULL, 1);

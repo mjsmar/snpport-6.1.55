@@ -244,6 +244,42 @@ skip:
 	}
 }
 
+static void guest_test_gmem_fallocate_with_fault(uint64_t base_gpa, bool fallocate)
+{
+	guest_map_shared(base_gpa, PER_CPU_DATA_SIZE, true);
+	/*
+	 * - 4k pages fallocated()
+	 * [0:0x200000] fallocate = true;
+	 * kvm_gmem_fallocate: FALLOC_FL_KEEP_SIZE offset=0 len=0x200000
+	 * kvm_gmem_get_pfn: gfn=0x100000 slot(base_gfn=0x100000, gmem.pgoff=0)
+	 * ....
+	 * kvm_gmem_get_pfn: gfn=0x1001ff slot(base_gfn=0x100000, gmem.pgoff=0)
+	 * - 4k pages faulted in
+	 * [0:0x200000] fallocate = false;
+	 * kvm_gmem_get_pfn: gfn=0x100000 slot(base_gfn=0x100000, gmem.pgoff=0)
+	 * ....
+	 * kvm_gmem_get_pfn: gfn=0x1001ff slot(base_gfn=0x100000, gmem.pgoff=0)
+	 */
+	guest_map_mem(base_gpa, SZ_2M, false, fallocate);
+	memset((void *)base_gpa, 0x11, SZ_2M);
+}
+
+void guest_test_gmem_fallocate_with_fault_hp(uint64_t base_gpa, bool fallocate)
+{
+	guest_map_shared(base_gpa, PER_CPU_DATA_SIZE, true);
+	/*
+	 * - Huge page fallocated()
+	 * [0:0x200000]: fallocate = true
+	 * kvm_gmem_fallocate mode=FALLOC_FL_KEEP_SIZE ofst=0 len=200000
+	 * kvm_gmem_get_pfn: gfn=0x100000 slot(base_gfn=0x100000, gmem.pgoff=0)
+	 * - Huge page faulted in.
+	 * [0:0x200000]: fallocate = false
+	 * kvm_gmem_get_pfn: gfn=0x100000 slot(base_gfn=0x100000, gmem.pgoff=0)
+	 */
+        guest_map_mem(base_gpa, SZ_2M, false, fallocate);
+        memset((void *)base_gpa, 0x11, SZ_2M);
+}
+
 static void guest_code(uint64_t base_gpa)
 {
 	/*
@@ -252,6 +288,24 @@ static void guest_code(uint64_t base_gpa)
 	 */
 	guest_run_test(base_gpa, false);
 	guest_run_test(base_gpa, true);
+
+	/*
+	 * Test fallocate() and page fault memory allocate where
+	 * /sys/kernel/mm/transparent_hugepage/enabled=disabled
+	 * results int 512 page allocates
+	 */
+	guest_test_gmem_fallocate_with_fault(base_gpa, true);
+	guest_test_gmem_fallocate_with_fault(base_gpa, false);
+
+	/*
+	 * Test fallocate() and page fault memory allocate where
+	 * /sys/kernel/mm/transparent_hugepage/enabled=enabled
+	 * results 1 huge page allocate
+         * run with option: "-s anonymous_thp" 
+	 */
+        guest_test_gmem_fallocate_with_fault_hp(base_gpa, true);
+        guest_test_gmem_fallocate_with_fault_hp(base_gpa, false);
+
 	GUEST_DONE();
 }
 
@@ -292,6 +346,12 @@ static void print_seq(int i, uint8_t *hva,
 	uint64_t size, struct ucall *uc, char *range)
 {
 	int seq = getseq(i);
+	static bool once=true;
+
+	if (once) {
+		printf("--------------- Private/Shared memory state for range [gpa:gpa+0x201000]\n");
+		once = false;
+	}
 
 	switch(seq) {
 	case 0:

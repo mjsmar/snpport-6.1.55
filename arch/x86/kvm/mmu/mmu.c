@@ -7049,11 +7049,6 @@ static bool hugepage_has_attrs(struct kvm *kvm, struct kvm_memory_slot *slot,
 	return true;
 }
 
-static inline bool kvm_slot_can_be_private(const struct kvm_memory_slot *slot)
-{
-	return false;
-}
-
 bool kvm_arch_post_set_memory_attributes(struct kvm *kvm,
 					struct kvm_gfn_range *range)
 {

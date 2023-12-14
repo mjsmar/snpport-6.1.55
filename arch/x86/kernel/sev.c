@@ -2435,6 +2435,7 @@ static int __init snp_rmptable_init(void)
 
         cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "x86/rmptable_init:online", __snp_enable, NULL);
 
+	printk(KERN_INFO "SNP RMP Table initialized successfully including IOMMM SNP\n");
         return 0;
 
 nosnp:

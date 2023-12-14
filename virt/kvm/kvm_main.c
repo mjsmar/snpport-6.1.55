@@ -1582,6 +1582,7 @@ static void kvm_replace_memslot(struct kvm *kvm,
 	}
 }
 
+#define kvm_arch_has_private_mem(kvm) false
 static int check_memory_region_flags(struct kvm *kvm,
 				     const struct kvm_userspace_memory_region2 *mem)
 {

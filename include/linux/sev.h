@@ -12,13 +12,11 @@
 #define RMPUPDATE_FAIL_OVERLAP         7
 
 #ifdef CONFIG_AMD_MEM_ENCRYPT
-int snp_lookup_rmpentry(u64 pfn, int *level);
 int psmash(u64 pfn);
 int rmp_make_private(u64 pfn, u64 gpa, enum pg_level level, int asid, bool immutable);
 int rmp_make_shared(u64 pfn, enum pg_level level);
 void dump_rmpentry(u64 pfn);
 #else
-static inline int snp_lookup_rmpentry(u64 pfn, int *level) { return 0; }
 static inline int psmash(u64 pfn) { return -ENXIO; }
 static inline int rmp_make_private(u64 pfn, u64 gpa, enum pg_level level, int asid,
                                    bool immutable)

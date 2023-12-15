@@ -17,14 +17,14 @@
  *   bit 31 ==                          1: fault was due to RMP violation
  */
 enum x86_pf_error_code {
-	X86_PF_PROT     =               BIT_ULL(0),
-        X86_PF_WRITE    =               BIT_ULL(1),
-        X86_PF_USER     =               BIT_ULL(2),
-        X86_PF_RSVD     =               BIT_ULL(3),
-        X86_PF_INSTR    =               BIT_ULL(4),
-        X86_PF_PK       =               BIT_ULL(5),
-        X86_PF_SGX      =               BIT_ULL(15),
-        X86_PF_RMP      =               BIT_ULL(31),
+	X86_PF_PROT	=		BIT(0),
+	X86_PF_WRITE	=		BIT(1),
+	X86_PF_USER	=		BIT(2),
+	X86_PF_RSVD	=		BIT(3),
+	X86_PF_INSTR	=		BIT(4),
+	X86_PF_PK	=		BIT(5),
+	X86_PF_SGX	=		BIT(15),
+	X86_PF_RMP	=		BIT(31),
 };
 
 #endif /* _ASM_X86_TRAP_PF_H */

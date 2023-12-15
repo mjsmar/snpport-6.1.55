@@ -15,7 +15,6 @@
 int psmash(u64 pfn);
 int rmp_make_private(u64 pfn, u64 gpa, enum pg_level level, int asid, bool immutable);
 int rmp_make_shared(u64 pfn, enum pg_level level);
-void dump_rmpentry(u64 pfn);
 #else
 static inline int psmash(u64 pfn) { return -ENXIO; }
 static inline int rmp_make_private(u64 pfn, u64 gpa, enum pg_level level, int asid,
@@ -24,7 +23,6 @@ static inline int rmp_make_private(u64 pfn, u64 gpa, enum pg_level level, int as
         return -ENODEV;
 }
 static inline int rmp_make_shared(u64 pfn, enum pg_level level) { return -ENODEV; }
-static inline void dump_rmpentry(u64 pfn) { }
  
 #endif /* CONFIG_AMD_MEM_ENCRYPT */
 #endif /* __LINUX_SEV_H */

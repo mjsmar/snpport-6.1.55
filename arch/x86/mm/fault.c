@@ -422,8 +422,10 @@ static void dump_pagetable(unsigned long address, bool show_rmpentry)
 out:
 	pr_cont("\n");
 
+#if 0
 	if (show_rmpentry)
                 dump_rmpentry(pfn);
+#endif
 	return;
 bad:
 	pr_info("BAD\n");
@@ -1283,6 +1285,7 @@ static int handle_user_rmp_page_fault(struct pt_regs *regs, unsigned long error_
                 pfn |= (address >> PAGE_SHIFT) & mask;
         }
 
+#if 0
         /*
          * If its a guest private page, then the fault cannot be resolved.
          * Send a SIGBUS to terminate the process.
@@ -1291,6 +1294,7 @@ static int handle_user_rmp_page_fault(struct pt_regs *regs, unsigned long error_
                 do_sigbus(regs, error_code, address, VM_FAULT_SIGBUS);
                 return 1;
         }
+#endif
 
         /*
          * The backing page level is higher than the RMP page level, request

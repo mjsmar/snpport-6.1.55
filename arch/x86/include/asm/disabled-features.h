@@ -87,7 +87,7 @@
 # define DISABLE_TDX_GUEST	(1 << (X86_FEATURE_TDX_GUEST & 31))
 #endif
 
-#ifdef CONFIG_AMD_MEM_ENCRYPT
+#ifdef CONFIG_KVM_AMD_SEV
 # define DISABLE_SEV_SNP       0
 #else
 # define DISABLE_SEV_SNP       (1 << (X86_FEATURE_SEV_SNP & 31))

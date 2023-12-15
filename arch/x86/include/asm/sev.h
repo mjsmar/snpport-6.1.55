@@ -88,28 +88,6 @@ extern bool handle_vc_boot_ghcb(struct pt_regs *regs);
 #define RMP_TO_X86_PG_LEVEL(level)     (((level) == RMP_PG_SIZE_4K) ? PG_LEVEL_4K : PG_LEVEL_2M)
 #define X86_TO_RMP_PG_LEVEL(level)     (((level) == PG_LEVEL_4K) ? RMP_PG_SIZE_4K : RMP_PG_SIZE_2M)
 
-/*
- * The RMP entry format is not architectural. The format is defined in PPR
- * Family 19h Model 01h, Rev B1 processor.
- */
-struct __packed rmpentry {
-        union {
-                struct {
-                        u64     assigned        : 1,
-                                pagesize        : 1,
-                                immutable       : 1,
-                                rsvd1           : 9,
-                                gpa             : 39,
-                                asid            : 10,
-                                vmsa            : 1,
-                                validated       : 1,
-                                rsvd2           : 1;
-                } info;
-                u64 low;
-        };
-        u64 high;
-};
-
 #define rmpentry_assigned(x)   ((x)->info.assigned)
 #define rmpentry_pagesize(x)   ((x)->info.pagesize)
 #define rmpentry_vmsa(x)       ((x)->info.vmsa)
@@ -240,6 +218,7 @@ void snp_set_wakeup_secondary_cpu(void);
 bool snp_init(struct boot_params *bp);
 void __init __noreturn snp_abort(void);
 int snp_issue_guest_request(u64 exit_code, struct snp_req_data *input, unsigned long *fw_err);
+bool snp_get_rmptable_info(u64 *start, u64 *len);
 #else
 static inline void sev_es_ist_enter(struct pt_regs *regs) { }
 static inline void sev_es_ist_exit(void) { }
@@ -264,6 +243,7 @@ static inline int snp_issue_guest_request(u64 exit_code, struct snp_req_data *in
 {
 	return -ENOTTY;
 }
+static inline bool snp_get_rmptable_info(u64 *start, u64 *len) { return false; }
 #endif
 
 #endif

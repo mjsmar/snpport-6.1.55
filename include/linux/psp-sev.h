@@ -12,8 +12,6 @@
 #ifndef __PSP_SEV_H__
 #define __PSP_SEV_H__
 
-#include <linux/sev.h>
-
 #include <uapi/linux/psp-sev.h>
 
 #ifdef CONFIG_X86

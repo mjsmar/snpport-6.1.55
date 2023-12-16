@@ -28,6 +28,7 @@
 #include <asm/smp.h>
 #include <asm/cacheflush.h>
 #include <asm/sev.h>
+#include <asm/sev-host.h>
 
 #include "psp-dev.h"
 #include "sev-dev.h"
@@ -239,6 +240,7 @@ cleanup:
 static inline int rmp_make_firmware(unsigned long pfn, int level)
 {
         return rmp_make_private(pfn, 0, level, 0, true);
+	return 0;
 }
 
 static int snp_set_rmp_state(unsigned long paddr, unsigned int npages, bool to_fw, bool locked,

@@ -325,3 +325,157 @@ void sev_dump_rmpentry(u64 pfn)
 }
 EXPORT_SYMBOL_GPL(sev_dump_rmpentry);
 
+/*
+ * PSMASH a 2MB aligned page into 4K pages in the RMP table while preserving the
+ * Validated bit.
+ */
+int psmash(u64 pfn)
+{
+        unsigned long paddr = pfn << PAGE_SHIFT;
+        int ret;
+
+        pr_debug("%s: PFN: 0x%llx\n", __func__, pfn);
+
+        if (!pfn_valid(pfn))
+                return -EINVAL;
+
+        if (!cpu_feature_enabled(X86_FEATURE_SEV_SNP))
+                return -ENXIO;
+
+        /* Binutils version 2.36 supports the PSMASH mnemonic. */
+        asm volatile(".byte 0xF3, 0x0F, 0x01, 0xFF"
+                      : "=a"(ret)
+                      : "a"(paddr)
+                      : "memory", "cc");
+
+        return ret;
+}
+EXPORT_SYMBOL_GPL(psmash);
+
+static int restore_direct_map(u64 pfn, int npages)
+{
+        int i, ret = 0;
+
+        for (i = 0; i < npages; i++) {
+                ret = set_direct_map_default_noflush(pfn_to_page(pfn + i));
+                if (ret)
+                        break;
+        }
+
+        if (ret)
+                pr_warn("Failed to restore direct map for pfn 0x%llx, ret: %d\n",
+                        pfn + i, ret);
+
+        return ret;
+}
+
+static int invalidate_direct_map(u64 pfn, int npages)
+{
+        int i, ret = 0;
+
+        for (i = 0; i < npages; i++) {
+                ret = set_direct_map_invalid_noflush(pfn_to_page(pfn + i));
+                if (ret)
+                        break;
+        }
+
+        if (ret) {
+                pr_warn("Failed to invalidate direct map for pfn 0x%llx, ret: %d\n",
+                        pfn + i, ret);
+                restore_direct_map(pfn, i);
+        }
+
+        return ret;
+
+}
+
+static int rmpupdate(u64 pfn, struct rmp_state *val)
+{
+        unsigned long paddr = pfn << PAGE_SHIFT;
+        int ret, level, npages;
+        int attempts = 0;
+
+        if (!cpu_feature_enabled(X86_FEATURE_SEV_SNP))
+                return -ENXIO;
+
+	level = RMP_TO_X86_PG_LEVEL(val->pagesize);
+        npages = page_level_size(level) / PAGE_SIZE;
+
+        /*
+         * If page is getting assigned in the RMP table then unmap it from the
+         * direct map.
+         */
+        if (val->assigned) {
+                if (invalidate_direct_map(pfn, npages)) {
+                        pr_err("Failed to unmap %d pages at pfn 0x%llx from the direct_map\n",
+                               npages, pfn);
+                        return -EFAULT;
+                }
+        }
+
+        do {
+                /* Binutils version 2.36 supports the RMPUPDATE mnemonic. */
+                asm volatile(".byte 0xF2, 0x0F, 0x01, 0xFE"
+                             : "=a"(ret)
+                             : "a"(paddr), "c"((unsigned long)val)
+                             : "memory", "cc");
+
+                attempts++;
+        } while (ret == RMPUPDATE_FAIL_OVERLAP);
+
+        if (ret) {
+                pr_err("RMPUPDATE failed after %d attempts, ret: %d, pfn: %llx, npages: %d, level: %d\n"
+,
+                       attempts, ret, pfn, npages, level);
+                sev_dump_rmpentry(pfn);
+                dump_stack();
+                return -EFAULT;
+        }
+
+	/*
+	 * Restore the direct map after the page is removed from the RMP table.
+	 */
+        if (!val->assigned) {
+                if (restore_direct_map(pfn, npages)) {
+                        pr_err("Failed to map %d pages at pfn 0x%llx into the direct_map\n",
+                               npages, pfn);
+                        return -EFAULT;
+                }
+        }
+
+        return 0;
+}
+
+int rmp_make_private(u64 pfn, u64 gpa, enum pg_level level, int asid, bool immutable)
+{
+        struct rmp_state val;
+
+        pr_debug("%s: GPA: 0x%llx, PFN: 0x%llx, level: %d, immutable: %d\n",
+                 __func__, gpa, pfn, level, immutable);
+
+        memset(&val, 0, sizeof(val));
+        val.assigned = 1;
+        val.asid = asid;
+        val.immutable = immutable;
+        val.gpa = gpa;
+        val.pagesize = X86_TO_RMP_PG_LEVEL(level);
+
+        return rmpupdate(pfn, &val);
+}
+EXPORT_SYMBOL_GPL(rmp_make_private);
+
+/*
+ * Transition a page to hypervisor/shared state using the RMPUPDATE instruction.
+ */
+int rmp_make_shared(u64 pfn, enum pg_level level)
+{
+        struct rmp_state val;
+
+        pr_debug("%s: PFN: 0x%llx, level: %d\n", __func__, pfn, level);
+
+        memset(&val, 0, sizeof(val));
+        val.pagesize = X86_TO_RMP_PG_LEVEL(level);
+
+        return rmpupdate(pfn, &val);
+}
+EXPORT_SYMBOL_GPL(rmp_make_shared);

@@ -9,7 +9,6 @@
 #define __ASM_ENCRYPTED_STATE_H
 
 #include <linux/types.h>
-#include <linux/sev.h>
 #include <asm/insn.h>
 #include <asm/sev-common.h>
 #include <asm/bootparam.h>
@@ -82,10 +81,6 @@ extern bool handle_vc_boot_ghcb(struct pt_regs *regs);
 /* Software defined (when rFlags.CF = 1) */
 #define PVALIDATE_FAIL_NOUPDATE		255
 
-/* RMP page size */
-#define RMP_PG_SIZE_2M                  1
-#define X86_TO_RMP_PG_LEVEL(level)     (((level) == PG_LEVEL_4K) ? RMP_PG_SIZE_4K : RMP_PG_SIZE_2M)
-
 #define rmpentry_assigned(x)   ((x)->info.assigned)
 #define rmpentry_pagesize(x)   ((x)->info.pagesize)
 #define rmpentry_vmsa(x)       ((x)->info.vmsa)
@@ -141,15 +136,6 @@ struct snp_secrets_page_layout {
 	u8 vmpck3[VMPCK_KEY_LEN];
 	struct secrets_os_area os_area;
 	u8 rsvd3[3840];
-} __packed;
-
-struct rmpupdate {
-        u64 gpa;
-        u8 assigned;
-        u8 pagesize;
-        u8 immutable;
-        u8 rsvd;
-        u32 asid;
 } __packed;
 
 #ifdef CONFIG_AMD_MEM_ENCRYPT

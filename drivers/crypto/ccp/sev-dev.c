@@ -170,18 +170,21 @@ static int sev_cmd_buffer_len(int cmd)
 	case SEV_CMD_GET_ID:			return sizeof(struct sev_data_get_id);
 	case SEV_CMD_ATTESTATION_REPORT:	return sizeof(struct sev_data_attestation_report);
 	case SEV_CMD_SEND_CANCEL:		return sizeof(struct sev_data_send_cancel);
-	case SEV_CMD_SNP_GCTX_CREATE:		return sizeof(struct sev_data_snp_gctx_create);
+	// case SEV_CMD_SNP_GCTX_CREATE:		return sizeof(struct sev_data_snp_gctx_create);
+	case SEV_CMD_SNP_GCTX_CREATE:           return sizeof(struct sev_data_snp_addr);
 	case SEV_CMD_SNP_LAUNCH_START:		return sizeof(struct sev_data_snp_launch_start);
 	case SEV_CMD_SNP_LAUNCH_UPDATE:		return sizeof(struct sev_data_snp_launch_update);
 	case SEV_CMD_SNP_ACTIVATE:		return sizeof(struct sev_data_snp_activate);
-	case SEV_CMD_SNP_DECOMMISSION:		return sizeof(struct sev_data_snp_decommission);
+	// case SEV_CMD_SNP_DECOMMISSION:		return sizeof(struct sev_data_snp_decommission);
+	case SEV_CMD_SNP_DECOMMISSION:          return sizeof(struct sev_data_snp_addr);
 	case SEV_CMD_SNP_PAGE_RECLAIM:		return sizeof(struct sev_data_snp_page_reclaim);
 	case SEV_CMD_SNP_GUEST_STATUS:		return sizeof(struct sev_data_snp_guest_status);
 	case SEV_CMD_SNP_LAUNCH_FINISH:		return sizeof(struct sev_data_snp_launch_finish);
 	case SEV_CMD_SNP_DBG_DECRYPT:		return sizeof(struct sev_data_snp_dbg);
 	case SEV_CMD_SNP_DBG_ENCRYPT:		return sizeof(struct sev_data_snp_dbg);
 	case SEV_CMD_SNP_PAGE_UNSMASH:		return sizeof(struct sev_data_snp_page_unsmash);
-	case SEV_CMD_SNP_PLATFORM_STATUS:	return sizeof(struct sev_data_snp_platform_status_buf);
+	//case SEV_CMD_SNP_PLATFORM_STATUS:	return sizeof(struct sev_data_snp_platform_status_buf);
+	case SEV_CMD_SNP_PLATFORM_STATUS:       return sizeof(struct sev_data_snp_addr);
 	case SEV_CMD_SNP_GUEST_REQUEST:		return sizeof(struct sev_data_snp_guest_request);
 	case SEV_CMD_SNP_CONFIG:		return sizeof(struct sev_user_data_snp_config);
 	default:				return 0;
@@ -1645,6 +1648,7 @@ e_free_pdh:
 	return ret;
 }
 
+#if 0
 static int sev_ioctl_snp_platform_status(struct sev_issue_cmd *argp)
 {
         struct sev_device *sev = psp_master->sev_data;
@@ -1791,6 +1795,7 @@ e_free:
         kfree(certs);
         return ret;
 }
+#endif
 
 
 
@@ -1845,15 +1850,17 @@ static long sev_ioctl(struct file *file, unsigned int ioctl, unsigned long arg)
 	case SEV_GET_ID2:
 		ret = sev_ioctl_do_get_id2(&input);
 		break;
+#if 0
 	case SNP_PLATFORM_STATUS:
                 ret = sev_ioctl_snp_platform_status(&input);
                 break;
-	 case SNP_SET_EXT_CONFIG:
+	case SNP_SET_EXT_CONFIG:
                 ret = sev_ioctl_snp_set_config(&input, writable);
                 break;
         case SNP_GET_EXT_CONFIG:
                 ret = sev_ioctl_snp_get_config(&input);
                 break;
+#endif
 	default:
 		ret = -EINVAL;
 		goto out;
@@ -1902,7 +1909,7 @@ int sev_guest_df_flush(int *error)
 }
 EXPORT_SYMBOL_GPL(sev_guest_df_flush);
 
-int snp_guest_decommission(struct sev_data_snp_decommission *data, int *error)
+int snp_guest_decommission(struct sev_data_decommission *data, int *error)
 {
 	return sev_do_cmd(SEV_CMD_SNP_DECOMMISSION, data, error);
 }

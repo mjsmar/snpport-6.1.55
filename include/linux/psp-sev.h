@@ -87,32 +87,34 @@ enum sev_cmd {
 	SEV_CMD_DBG_ENCRYPT		= 0x061,
 
 	/* SNP specific commands */
-	SEV_CMD_SNP_INIT		= 0x81,
-	SEV_CMD_SNP_SHUTDOWN		= 0x82,
-	SEV_CMD_SNP_PLATFORM_STATUS	= 0x83,
-	SEV_CMD_SNP_DF_FLUSH		= 0x84,
-	SEV_CMD_SNP_INIT_EX		= 0x85,
-	SEV_CMD_SNP_DECOMMISSION	= 0x90,
-	SEV_CMD_SNP_ACTIVATE		= 0x91,
-	SEV_CMD_SNP_GUEST_STATUS	= 0x92,
-	SEV_CMD_SNP_GCTX_CREATE		= 0x93,
-	SEV_CMD_SNP_GUEST_REQUEST	= 0x94,
-	SEV_CMD_SNP_ACTIVATE_EX		= 0x95,
-	SEV_CMD_SNP_LAUNCH_START	= 0xA0,
-	SEV_CMD_SNP_LAUNCH_UPDATE	= 0xA1,
-	SEV_CMD_SNP_LAUNCH_FINISH	= 0xA2,
-	SEV_CMD_SNP_DBG_DECRYPT		= 0xB0,
-	SEV_CMD_SNP_DBG_ENCRYPT		= 0xB1,
-	SEV_CMD_SNP_PAGE_SWAP_OUT	= 0xC0,
-	SEV_CMD_SNP_PAGE_SWAP_IN	= 0xC1,
-	SEV_CMD_SNP_PAGE_MOVE		= 0xC2,
-	SEV_CMD_SNP_PAGE_MD_INIT	= 0xC3,
-	SEV_CMD_SNP_PAGE_MD_RECLAIM	= 0xC4,
-	SEV_CMD_SNP_PAGE_RO_RECLAIM	= 0xC5,
-	SEV_CMD_SNP_PAGE_RO_RESTORE	= 0xC6,
-	SEV_CMD_SNP_PAGE_RECLAIM	= 0xC7,
-	SEV_CMD_SNP_PAGE_UNSMASH	= 0xC8,
-	SEV_CMD_SNP_CONFIG		= 0xC9,
+        SEV_CMD_SNP_INIT                        = 0x81,
+        SEV_CMD_SNP_SHUTDOWN                    = 0x82,
+        SEV_CMD_SNP_PLATFORM_STATUS             = 0x83,
+        SEV_CMD_SNP_DF_FLUSH                    = 0x84,
+        SEV_CMD_SNP_INIT_EX                     = 0x85,
+        SEV_CMD_SNP_SHUTDOWN_EX                 = 0x86,
+        SEV_CMD_SNP_DECOMMISSION                = 0x90,
+        SEV_CMD_SNP_ACTIVATE                    = 0x91,
+        SEV_CMD_SNP_GUEST_STATUS                = 0x92,
+        SEV_CMD_SNP_GCTX_CREATE                 = 0x93,
+        SEV_CMD_SNP_GUEST_REQUEST               = 0x94,
+        SEV_CMD_SNP_ACTIVATE_EX                 = 0x95,
+        SEV_CMD_SNP_LAUNCH_START                = 0xA0,
+        SEV_CMD_SNP_LAUNCH_UPDATE               = 0xA1,
+        SEV_CMD_SNP_LAUNCH_FINISH               = 0xA2,
+        SEV_CMD_SNP_DBG_DECRYPT                 = 0xB0,
+        SEV_CMD_SNP_DBG_ENCRYPT                 = 0xB1,
+        SEV_CMD_SNP_PAGE_SWAP_OUT               = 0xC0,
+        SEV_CMD_SNP_PAGE_SWAP_IN                = 0xC1,
+        SEV_CMD_SNP_PAGE_MOVE                   = 0xC2,
+        SEV_CMD_SNP_PAGE_MD_INIT                = 0xC3,
+        SEV_CMD_SNP_PAGE_SET_STATE              = 0xC6,
+        SEV_CMD_SNP_PAGE_RECLAIM                = 0xC7,
+        SEV_CMD_SNP_PAGE_UNSMASH                = 0xC8,
+        SEV_CMD_SNP_CONFIG                      = 0xC9,
+        SEV_CMD_SNP_DOWNLOAD_FIRMWARE_EX        = 0xCA,
+        SEV_CMD_SNP_COMMIT                      = 0xCB,
+        SEV_CMD_SNP_VLEK_LOAD                   = 0xCD,
 
 	SEV_CMD_MAX,
 };
@@ -560,15 +562,6 @@ struct sev_data_attestation_report {
 } __packed;
 
 /**
- * struct sev_data_snp_platform_status_buf - SNP_PLATFORM_STATUS command params
- *
- * @address: physical address where the status should be copied
- */
-struct sev_data_snp_platform_status_buf {
-	u64 status_paddr;			/* In */
-} __packed;
-
-/**
  * struct sev_data_snp_download_firmware - SNP_DOWNLOAD_FIRMWARE command params
  *
  * @address: physical address of firmware image
@@ -577,16 +570,6 @@ struct sev_data_snp_platform_status_buf {
 struct sev_data_snp_download_firmware {
 	u64 address;				/* In */
 	u32 len;				/* In */
-} __packed;
-
-/**
- * struct sev_data_snp_gctx_create - SNP_GCTX_CREATE command params
- *
- * @gctx_paddr: system physical address of the page donated to firmware by
- *		the hypervisor to contain the guest context.
- */
-struct sev_data_snp_gctx_create {
-	u64 gctx_paddr;				/* In */
 } __packed;
 
 /**
@@ -601,12 +584,12 @@ struct sev_data_snp_activate {
 } __packed;
 
 /**
- * struct sev_data_snp_decommission - SNP_DECOMMISSION command params
+ * struct sev_data_snp_addr - generic SNP command params
  *
  * @address: system physical address guest context page
  */
-struct sev_data_snp_decommission {
-	u64 gctx_paddr;				/* In */
+struct sev_data_snp_addr {
+        u64 gctx_paddr;                         /* In */
 } __packed;
 
 /**
@@ -726,7 +709,6 @@ struct sev_data_snp_dbg {
 	u64 gctx_paddr;				/* In */
 	u64 src_addr;				/* In */
 	u64 dst_addr;				/* In */
-	u32 len;				/* In */
 } __packed;
 
 /**
@@ -749,8 +731,47 @@ struct sev_data_snp_guest_request {
  */
 struct sev_data_snp_init_ex {
 	u32 init_rmp:1;
-	u32 rsvd:31;
-	u8 rsvd1[60];
+        u32 list_paddr_en:1;
+        u32 rsvd:30;
+        u32 rsvd1;
+        u64 list_paddr;
+        u8  rsvd2[48];
+} __packed;
+
+/**
+ * struct sev_data_range - RANGE structure
+ *
+ * @base: system physical address of first byte of range
+ * @page_count: number of 4KB pages in this range
+ */
+struct sev_data_range {
+        u64 base;
+        u32 page_count;
+        u32 rsvd;
+} __packed;
+
+/**
+ * struct sev_data_range_list - RANGE_LIST structure
+ *
+ * @num_elements: number of elements in RANGE_ARRAY
+ * @ranges: array of num_elements of type RANGE
+ */
+struct sev_data_range_list {
+        u32 num_elements;
+        u32 rsvd;
+        struct sev_data_range ranges[0];
+} __packed;
+
+/**
+ * struct sev_data_snp_shutdown_ex - SNP_SHUTDOWN_EX structure
+ *
+ * @length: len of the command buffer read by the PSP
+ * @iommu_snp_shutdown: Disable enforcement of SNP in the IOMMU
+ */
+struct sev_data_snp_shutdown_ex {
+        u32 length;
+        u32 iommu_snp_shutdown:1;
+        u32 rsvd1:31;
 } __packed;
 
 #ifdef CONFIG_CRYPTO_DEV_SP_PSP
@@ -895,6 +916,7 @@ int sev_guest_decommission(struct sev_data_decommission *data, int *error);
  */
 int snp_guest_df_flush(int *error);
 
+#if 0
 /**
  * snp_guest_decommission - perform SNP_DECOMMISSION command
  *
@@ -909,6 +931,7 @@ int snp_guest_df_flush(int *error);
  * -%EIO       if the sev returned a non-zero return code
  */
 int snp_guest_decommission(struct sev_data_snp_decommission *data, int *error);
+#endif
 
 /**
  * snp_guest_page_reclaim - perform SNP_PAGE_RECLAIM command

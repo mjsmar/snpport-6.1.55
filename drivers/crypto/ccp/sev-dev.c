@@ -83,6 +83,8 @@ static void *sev_es_tmr;
 #define NV_LENGTH (32 * 1024)
 static void *sev_init_ex_buffer;
 
+static int __sev_snp_init_locked(int *error);
+
 /* When SEV-SNP is enabled the TMR needs to be 2MB aligned and 2MB size. */
 #define SEV_SNP_ES_TMR_SIZE    (2 * 1024 * 1024)
 
@@ -934,12 +936,19 @@ static int __sev_init_ex_locked(int *error)
 	return __sev_do_cmd_locked(SEV_CMD_INIT_EX, &data, error);
 }
 
+static inline int __sev_do_init_locked(int *psp_ret)
+{
+        if (sev_init_ex_buffer)
+                return __sev_init_ex_locked(psp_ret);
+        else
+                return __sev_init_locked(psp_ret);
+}
+
 static int __sev_platform_init_locked(int *error)
 {
 	struct psp_device *psp = psp_master;
 	struct sev_device *sev;
-	int rc = 0, psp_ret = -1;
-	int (*init_function)(int *error);
+	int rc = 0, psp_ret = SEV_RET_NO_FW_CALL;;
 
 	if (!psp || !psp->sev_data)
 		return -ENODEV;
@@ -949,16 +958,40 @@ static int __sev_platform_init_locked(int *error)
 	if (sev->state == SEV_STATE_INIT)
 		return 0;
 
+	rc = __sev_snp_init_locked(error);
+	if (rc && rc != -ENODEV) {
+		/*
+		 * Don't abort the probe if SNP INIT failed,
+		 * continue to initialize the legacy SEV firmware.
+		 */
+		dev_err(sev->dev, "SEV-SNP: failed to INIT rc %d, error %#x\n", rc, *error);
+        }
+
+	if (rc != -ENODEV && alloc_snp_host_map(sev)) {
+		dev_notice(sev->dev, "Failed to alloc host map (disabling legacy SEV)\n");
+	 	goto skip_legacy;
+        }
+
+        if (!sev_es_tmr) {
+                /* Obtain the TMR memory area for SEV-ES use */
+                sev_es_tmr = sev_fw_alloc(sev_es_tmr_size);
+                if (sev_es_tmr) {
+                        /* Must flush the cache before giving it to the firmware */
+			if(!sev->snp_inited)
+                        	clflush_cache_range(sev_es_tmr, SEV_ES_TMR_SIZE);
+		} else {
+                        dev_warn(sev->dev,
+                                 "SEV: TMR allocation failed, SEV-ES support unavailable\n");
+                }
+	}
+
 	if (sev_init_ex_buffer) {
-		init_function = __sev_init_ex_locked;
 		rc = sev_read_init_ex_file();
 		if (rc)
 			return rc;
-	} else {
-		init_function = __sev_init_locked;
-	}
+	} 
 
-	rc = init_function(&psp_ret);
+	rc = __sev_do_init_locked(error);
 	if (rc && psp_ret == SEV_RET_SECURE_DATA_INVALID) {
 		/*
 		 * Initialization command returned an integrity check failure
@@ -968,7 +1001,7 @@ static int __sev_platform_init_locked(int *error)
 		 * with a reset state.
 		 */
 		dev_err(sev->dev, "SEV: retrying INIT command because of SECURE_DATA_INVALID error. Retrying once to reset PSP SEV state.");
-		rc = init_function(&psp_ret);
+		rc = __sev_do_init_locked(error);
 	}
 	if (error)
 		*error = psp_ret;
@@ -989,6 +1022,7 @@ static int __sev_platform_init_locked(int *error)
 	dev_info(sev->dev, "SEV API:%d.%d build:%d\n", sev->api_major,
 		 sev->api_minor, sev->build);
 
+skip_legacy:
 	return 0;
 }
 
@@ -1319,6 +1353,9 @@ static int __sev_snp_init_locked(int *error)
         struct sev_device *sev;
         int rc = 0;
 
+	if (!cpu_feature_enabled(X86_FEATURE_SEV_SNP))
+		return -ENODEV;
+
         if (!psp || !psp->sev_data)
                 return -ENODEV;
 
@@ -1326,6 +1363,12 @@ static int __sev_snp_init_locked(int *error)
 
         if (sev->snp_inited)
                 return 0;
+
+	if (!sev_version_greater_or_equal(SNP_MIN_API_MAJOR, SNP_MIN_API_MINOR)) {
+                dev_dbg(sev->dev, "SEV-SNP support requires firmware version >= %d:%d\n",
+                        SNP_MIN_API_MAJOR, SNP_MIN_API_MINOR);
+                return 0;
+        }
 
         /*
          * The SNP_INIT requires the MSR_VM_HSAVE_PA must be set to 0h
@@ -2163,55 +2206,15 @@ void sev_pci_init(void)
 		}
 	}
 
-	 /*
-	  * If boot CPU supports the SNP, then first attempt to initialize
-	  * the SNP firmware.
-	  */
-        if (cpu_feature_enabled(X86_FEATURE_SEV_SNP)) {
-                if (!sev_version_greater_or_equal(SNP_MIN_API_MAJOR, SNP_MIN_API_MINOR)) {
-                        dev_err(sev->dev, "SEV-SNP support requires firmware version >= %d:%d\n",
-                                SNP_MIN_API_MAJOR, SNP_MIN_API_MINOR);
-                } else {
-                        rc = sev_snp_init(&error);
-                        if (rc) {
-                                /*
-                                 * If we failed to INIT SNP then don't abort the probe.
-                                 * Continue to initialize the legacy SEV firmware.
-                                 */
-                                dev_err(sev->dev, "SEV-SNP: failed to INIT error %#x\n", error);
-                        }
-                }
-        }
-
-	/*
-	 * Allocate the intermediate buffers used for the legacy command handling.
-	 */
-        if (alloc_snp_host_map(sev)) {
-                dev_notice(sev->dev, "Failed to alloc host map (disabling legacy SEV)\n");
-                goto skip_legacy;
-        }
-
-	/* Obtain the TMR memory area for SEV-ES use */
-	sev_es_tmr = sev_fw_alloc(sev_es_tmr_size);
-	if (sev_es_tmr) {
-		/* Must flush the cache before giving it to the firmware */
-		if (!sev->snp_inited)
-			 clflush_cache_range(sev_es_tmr, sev_es_tmr_size);
-	} else {
-		dev_warn(sev->dev,
-			 "SEV: TMR allocation failed, SEV-ES support unavailable\n");
-        }
 
 	if (!psp_init_on_probe)
 		return;
 
-	/* Initialize the platform */
 	rc = sev_platform_init(&error);
 	if (rc)
 		dev_err(sev->dev, "SEV: failed to INIT error %#x, rc %d\n",
 			error, rc);
 
-skip_legacy:
 	dev_info(sev->dev, "SEV%s API:%d.%d build:%d\n", sev->snp_inited ?
                 "-SNP" : "", sev->api_major, sev->api_minor, sev->build);
 

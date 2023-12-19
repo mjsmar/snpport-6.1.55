@@ -36,6 +36,7 @@ enum {
  * SEV Firmware status code
  */
 typedef enum {
+	SEV_RET_NO_FW_CALL = -1,
 	SEV_RET_SUCCESS = 0,
 	SEV_RET_INVALID_PLATFORM_STATE,
 	SEV_RET_INVALID_GUEST_STATE,

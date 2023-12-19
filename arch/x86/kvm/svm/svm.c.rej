@@ -1,0 +1,18 @@
+diff a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c	(rejected hunks)
+@@ -4782,6 +4782,16 @@ static int svm_vm_init(struct kvm *kvm)
+ 	return 0;
+ }
+ 
++static void *svm_alloc_apic_backing_page(struct kvm_vcpu *vcpu)
++{
++	struct page *page = snp_safe_alloc_page(vcpu);
++
++	if (!page)
++		return NULL;
++
++	return page_address(page);
++}
++
+ static struct kvm_x86_ops svm_x86_ops __initdata = {
+ 	.name = KBUILD_MODNAME,
+ 

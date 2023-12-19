@@ -6,6 +6,8 @@
 #include <linux/kvm_host.h>
 #include <asm/kvm_host.h>
 
+#define PFERR_GUEST_ENC_MASK 1
+
 #undef MMU_DEBUG
 
 #ifdef MMU_DEBUG

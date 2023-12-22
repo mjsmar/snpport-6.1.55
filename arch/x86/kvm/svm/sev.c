@@ -3043,6 +3043,7 @@ static int sev_es_validate_vmgexit(struct vcpu_svm *svm)
 	case SVM_VMGEXIT_AP_JUMP_TABLE:
 	case SVM_VMGEXIT_UNSUPPORTED_EVENT:
 	case SVM_VMGEXIT_HV_FEATURES:
+	case SVM_VMGEXIT_PSC:
 		break;
 	default:
 		reason = GHCB_ERR_INVALID_EVENT;
@@ -3248,6 +3249,14 @@ static int snp_rmptable_psmash(struct kvm *kvm, kvm_pfn_t pfn)
         return psmash(pfn);
 }
 
+static int snp_complete_psc(struct kvm_vcpu *vcpu)
+{
+        struct vcpu_svm *svm = to_svm(vcpu);
+
+        ghcb_set_sw_exit_info_2(svm->sev_es.ghcb, vcpu->run->vmgexit.ret);
+
+        return 1; /* resume */
+}
 
 static int sev_handle_vmgexit_msr_protocol(struct vcpu_svm *svm)
 {
@@ -3492,6 +3501,12 @@ int sev_handle_vmgexit(struct kvm_vcpu *vcpu)
 		ret = 1;
 		break;
 	}
+	case SVM_VMGEXIT_PSC:
+                /* Let userspace handling allocating/deallocating backing pages. */
+                vcpu->run->exit_reason = KVM_EXIT_VMGEXIT;
+                vcpu->run->vmgexit.ghcb_msr = ghcb_gpa;
+                vcpu->arch.complete_userspace_io = snp_complete_psc;
+                break;
 	case SVM_VMGEXIT_UNSUPPORTED_EVENT:
 		vcpu_unimpl(vcpu,
 			    "vmgexit: unsupported event - exit_info_1=%#llx, exit_info_2=%#llx\n",

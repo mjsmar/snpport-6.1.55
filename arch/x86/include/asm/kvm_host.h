@@ -1653,6 +1653,8 @@ struct kvm_x86_ops {
 	 */
 	unsigned long (*vcpu_get_apicv_inhibit_reasons)(struct kvm_vcpu *vcpu);
 	void *(*alloc_apic_backing_page)(struct kvm_vcpu *vcpu);
+	int (*gmem_prepare)(struct kvm *kvm, struct kvm_memory_slot *slot,
+                            kvm_pfn_t pfn, gfn_t gfn, u8 *max_level);
 };
 
 struct kvm_x86_nested_ops {

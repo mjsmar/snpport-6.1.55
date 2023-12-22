@@ -700,6 +700,8 @@ void sev_vcpu_deliver_sipi_vector(struct kvm_vcpu *vcpu, u8 vector);
 void sev_es_prepare_switch_to_guest(struct sev_es_save_area *hostsa);
 void sev_es_unmap_ghcb(struct vcpu_svm *svm);
 struct page *snp_safe_alloc_page(struct kvm_vcpu *vcpu);
+int sev_gmem_prepare(struct kvm *kvm, struct kvm_memory_slot *slot,
+                     kvm_pfn_t pfn, gfn_t gfn, u8 *max_level);
 
 /* vmenter.S */
 

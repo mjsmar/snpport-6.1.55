@@ -147,7 +147,11 @@ static void kvm_gmem_issue_arch_invalidate(struct kvm *kvm, struct file *file,
 
 		folio = __filemap_get_folio(file->f_mapping, index,
 					    FGP_LOCK, 0);
-		if (IS_ERR(folio)) {
+		/*
+		 * In 6.1.55 Check for NULL instead of err ptr > max error addr 
+		 * i.e. IS_ERR(folio)
+		 */
+		if (!folio) {
 			index++;
 			continue;
 		}

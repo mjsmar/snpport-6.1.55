@@ -77,4 +77,12 @@ struct snp_ext_report_req {
 /* Get SNP extended report as defined in the GHCB specification version 2. */
 #define SNP_GET_EXT_REPORT _IOWR(SNP_GUEST_REQ_IOC_TYPE, 0x2, struct snp_guest_request_ioctl)
 
+/* Guest message request EXIT_INFO_2 constants */
+#define SNP_GUEST_FW_ERR_MASK           GENMASK_ULL(31, 0)
+#define SNP_GUEST_VMM_ERR_SHIFT         32
+#define SNP_GUEST_VMM_ERR(x)            (((u64)x) << SNP_GUEST_VMM_ERR_SHIFT)
+
+#define SNP_GUEST_VMM_ERR_INVALID_LEN   1
+#define SNP_GUEST_VMM_ERR_BUSY          2
+
 #endif /* __UAPI_LINUX_SEV_GUEST_H_ */

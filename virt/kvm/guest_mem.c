@@ -544,8 +544,12 @@ int kvm_gmem_bind(struct kvm *kvm, struct kvm_memory_slot *slot,
 	 * the file (same as the size of the file itself).
 	 */
 	if (!kvm_gmem_is_valid_size(offset, flags) ||
-	    !kvm_gmem_is_valid_size(size, flags))
-		goto err;
+	    !kvm_gmem_is_valid_size(size, flags)) {
+		//pr_debug("%s: unexpected alignment, fd %d offset %llx size %llx flags %lx\n"
+		printk(KERN_NOTICE "%s: unexpected alignment, fd %d offset %llx size %llx flags %lx\n"
+,
+			  __func__, fd, offset, size, flags);	
+	}
 
 	if (offset + size > i_size_read(inode))
 		goto err;
